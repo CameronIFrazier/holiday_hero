@@ -1,0 +1,25 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Light mode colors */
+:root {
+  --color-main: #f97316;
+  --color-secondary: #ffb74d;
+  --color-accent: #ff3d00;
+  --color-background: #fff3e0;
+  --color-text: #212121;
+  --color-subtext: #757575;
+  --color-border: #ffcc80;
+}
+
+/* Dark mode colors */
+[data-theme="dark"] {
+  --color-main: #f97316;
+  --color-secondary: #ffb74d;
+  --color-accent: #ff3d00;
+  --color-background: #212121;
+  --color-text: #ffffff;
+  --color-subtext: #b0b0b0;
+  --color-border: #ff8c42;
+}
