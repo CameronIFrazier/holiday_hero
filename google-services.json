@@ -1,0 +1,54 @@
+{
+  "project_info": {
+    "project_number": "804186028933",
+    "project_id": "holiday-hero-13bd7",
+    "storage_bucket": "holiday-hero-13bd7.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:804186028933:android:b71ed3eec01439df85a2ec",
+        "android_client_info": {
+          "package_name": "com.cameron.holidayhero"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "804186028933-a3l20nspdpdsd3mhbmkdk6g11cndjocd.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.cameron.holidayhero",
+            "certificate_hash": "9548c0e7497540a21b667fb9c8e0503ce1c4c426"
+          }
+        },
+        {
+          "client_id": "804186028933-ukqhoukrkel13bsnjfevufthn8vvv0e8.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA9TY4oRs_GDZGd9RjJI6zWKv_GusKlSbY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "804186028933-ukqhoukrkel13bsnjfevufthn8vvv0e8.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "804186028933-r197ukjrrvm59c0akl0vlj1ebc15goqr.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.cameron.holidayhero"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
