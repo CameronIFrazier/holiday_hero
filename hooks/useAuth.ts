@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
-import { onAuthStateChanged, type AuthUser } from "@/services/firebaseCompat";
-
+import { onAuthStateChanged, type AuthUser } from "../services/firebaseCompat";
 interface UseAuthReturn {
   user: AuthUser | null;
   loading: boolean;

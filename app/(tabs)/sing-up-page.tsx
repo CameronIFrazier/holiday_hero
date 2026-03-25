@@ -280,7 +280,7 @@ const handleGoogleSignIn = async () => {
         },
       });
       setDone(true);
-      router.replace('/(tabs)/index' as any);
+      router.replace('/' as any);
       onComplete?.();
     } catch (err: any) {
       // Map Firebase error codes to friendly messages
