@@ -1,7 +1,9 @@
 import { LinearGradient } from "expo-linear-gradient";
-import { ScrollView, Text, TouchableOpacity, View } from "react-native";
+import { useState } from "react";
+import { ScrollView, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { useAuth } from "@/hooks/useAuth";
 
-// ── Theme tokens (mirrors your global.css variables) ───────────────────────────
+// ── Theme tokens ───────────────────────────────────────────────────────────────
 const C = {
   main:       "#f97316",
   secondary:  "#ffb74d",
@@ -20,42 +22,6 @@ interface StatBlockProps {
   label: string;
 }
 
-interface RecentPostCardProps {
-  title: string;
-  holiday: string;
-  avatar: string;
-  participants: number;
-  timeAgo: string;
-  location: string;
-}
-
-// ── Mock data ──────────────────────────────────────────────────────────────────
-
-const RECENT_POSTS: RecentPostCardProps[] = [
-  {
-    title: "Bringing Back the Lights on Oak Street!",
-    holiday: "Christmas",
-    avatar: "🎄",
-    participants: 14,
-    timeAgo: "2h ago",
-    location: "Oak Street & 5th Ave",
-  },
-  {
-    title: "Front Yard Harvest Festival Display",
-    holiday: "Thanksgiving",
-    avatar: "🦃",
-    participants: 7,
-    timeAgo: "3d ago",
-    location: "Maple Drive",
-  },
-];
-
-const BADGES = [
-  { emoji: "🎄", label: "Christmas" },
-  { emoji: "🦃", label: "Thanksgiving" },
-  { emoji: "🎃", label: "Halloween" },
-];
-
 // ── StatBlock ──────────────────────────────────────────────────────────────────
 
 function StatBlock({ value, label }: StatBlockProps) {
@@ -69,68 +35,28 @@ function StatBlock({ value, label }: StatBlockProps) {
   );
 }
 
-// ── RecentPostCard ─────────────────────────────────────────────────────────────
-
-function RecentPostCard({ title, holiday, avatar, participants, timeAgo, location }: RecentPostCardProps) {
-  return (
-    <View
-      style={{
-        backgroundColor: C.white,
-        borderRadius: 20,
-        marginBottom: 14,
-        overflow: "hidden",
-        borderWidth: 1.5,
-        borderColor: C.border,
-      }}
-    >
-      {/* Top strip */}
-      <View
-        style={{
-          backgroundColor: "#fff3e0",
-          paddingHorizontal: 14,
-          paddingVertical: 10,
-          flexDirection: "row",
-          alignItems: "center",
-          justifyContent: "space-between",
-        }}
-      >
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-          <Text style={{ fontSize: 18 }}>{avatar}</Text>
-          <Text style={{ color: C.main, fontWeight: "700", fontSize: 13 }}>{holiday}</Text>
-        </View>
-        <Text style={{ color: C.subtext, fontSize: 12 }}>{timeAgo}</Text>
-      </View>
-
-      {/* Body */}
-      <View style={{ paddingHorizontal: 14, paddingVertical: 12 }}>
-        <Text style={{ color: C.text, fontWeight: "700", fontSize: 15, lineHeight: 22, marginBottom: 8 }}>
-          {title}
-        </Text>
-        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-          <Text style={{ color: C.subtext, fontSize: 12 }}>📍 {location}</Text>
-          <View
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              backgroundColor: "#fff3e0",
-              borderRadius: 20,
-              paddingHorizontal: 10,
-              paddingVertical: 4,
-              gap: 4,
-            }}
-          >
-            <Text style={{ fontSize: 12 }}>🙋</Text>
-            <Text style={{ color: C.main, fontSize: 12, fontWeight: "700" }}>{participants} joining</Text>
-          </View>
-        </View>
-      </View>
-    </View>
-  );
-}
-
 // ── Profile Screen ─────────────────────────────────────────────────────────────
 
 export default function ProfileScreen() {
+  const { user } = useAuth();
+
+  const initialName = user?.displayName ?? (user?.email?.split("@")[0] ?? "User");
+  const [displayName, setDisplayName] = useState(initialName);
+  const [editingName, setEditingName] = useState(false);
+  const [nameInput, setNameInput] = useState(initialName);
+
+  const avatarLetter = (displayName?.[0] ?? "U").toUpperCase();
+
+  const handleSave = () => {
+    setDisplayName(nameInput.trim() || initialName);
+    setEditingName(false);
+  };
+
+  const handleEdit = () => {
+    setNameInput(displayName);
+    setEditingName(true);
+  };
+
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: C.background }}
@@ -204,35 +130,65 @@ export default function ProfileScreen() {
               borderColor: C.white,
             }}
           >
-            <Text style={{ color: C.white, fontWeight: "900", fontSize: 32 }}>U</Text>
+            <Text style={{ color: C.white, fontWeight: "900", fontSize: 32 }}>{avatarLetter}</Text>
           </LinearGradient>
 
-          {/* Name */}
-          <Text style={{ color: C.text, fontWeight: "800", fontSize: 22, letterSpacing: -0.3, marginBottom: 3 }}>
-            User Name
-          </Text>
+          {/* Name — editable */}
+          {editingName ? (
+            <View style={{ width: "100%", alignItems: "center", gap: 8, marginBottom: 12 }}>
+              <TextInput
+                value={nameInput}
+                onChangeText={setNameInput}
+                autoFocus
+                style={{
+                  borderWidth: 1.5,
+                  borderColor: C.main,
+                  borderRadius: 12,
+                  paddingHorizontal: 14,
+                  paddingVertical: 8,
+                  fontSize: 18,
+                  fontWeight: "800",
+                  color: C.text,
+                  textAlign: "center",
+                  width: "80%",
+                  backgroundColor: C.background,
+                }}
+              />
+              <LinearGradient
+                colors={[C.main, C.accent]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={{ borderRadius: 30 }}
+              >
+                <TouchableOpacity onPress={handleSave} style={{ paddingHorizontal: 28, paddingVertical: 10 }}>
+                  <Text style={{ color: C.white, fontWeight: "800", fontSize: 14 }}>✓ Save</Text>
+                </TouchableOpacity>
+              </LinearGradient>
+            </View>
+          ) : (
+            <>
+              <Text style={{ color: C.text, fontWeight: "800", fontSize: 22, letterSpacing: -0.3, marginBottom: 3 }}>
+                {displayName}
+              </Text>
 
-          {/* Handle */}
-          <Text style={{ color: C.main, fontWeight: "600", fontSize: 13, marginBottom: 8 }}>
-            @username
-          </Text>
+              {/* Handle */}
+              <Text style={{ color: C.main, fontWeight: "600", fontSize: 13, marginBottom: 18 }}>
+                {user?.email ? `@${user.email.split("@")[0]}` : "@user"}
+              </Text>
 
-          {/* Bio */}
-          <Text style={{ color: C.subtext, fontSize: 13, textAlign: "center", lineHeight: 20, maxWidth: 260, marginBottom: 18 }}>
-            Loves decorating, coffee, and holiday spirit! 🎄
-          </Text>
-
-          {/* Edit Profile button */}
-          <LinearGradient
-            colors={[C.main, C.accent]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={{ borderRadius: 30 }}
-          >
-            <TouchableOpacity style={{ paddingHorizontal: 28, paddingVertical: 10 }}>
-              <Text style={{ color: C.white, fontWeight: "800", fontSize: 14 }}>✏️ Edit Profile</Text>
-            </TouchableOpacity>
-          </LinearGradient>
+              {/* Edit Profile button */}
+              <LinearGradient
+                colors={[C.main, C.accent]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={{ borderRadius: 30 }}
+              >
+                <TouchableOpacity onPress={handleEdit} style={{ paddingHorizontal: 28, paddingVertical: 10 }}>
+                  <Text style={{ color: C.white, fontWeight: "800", fontSize: 14 }}>✏️ Edit Profile</Text>
+                </TouchableOpacity>
+              </LinearGradient>
+            </>
+          )}
         </View>
       </View>
 
@@ -251,70 +207,33 @@ export default function ProfileScreen() {
           borderColor: C.border,
         }}
       >
-        <StatBlock value="42" label="Posts" />
+        <StatBlock value="0" label="Posts" />
         <View style={{ width: 1, height: 36, backgroundColor: C.border }} />
-        <StatBlock value="1.2k" label="Followers" />
+        <StatBlock value="0" label="Followers" />
         <View style={{ width: 1, height: 36, backgroundColor: C.border }} />
-        <StatBlock value="256" label="Following" />
-      </View>
-
-      {/* ── Holidays Celebrated badges ── */}
-      <View style={{ marginHorizontal: 20, marginTop: 18 }}>
-        <Text style={{ color: C.text, fontWeight: "700", fontSize: 16, marginBottom: 10 }}>
-          🏅 Holidays Celebrated
-        </Text>
-        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-          {BADGES.map((badge) => (
-            <View
-              key={badge.label}
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                gap: 6,
-                backgroundColor: "#fff3e0",
-                borderRadius: 20,
-                paddingHorizontal: 14,
-                paddingVertical: 7,
-                borderWidth: 1,
-                borderColor: C.border,
-              }}
-            >
-              <Text style={{ fontSize: 16 }}>{badge.emoji}</Text>
-              <Text style={{ color: C.main, fontWeight: "600", fontSize: 12 }}>{badge.label}</Text>
-            </View>
-          ))}
-        </View>
+        <StatBlock value="0" label="Following" />
       </View>
 
       {/* ── Recent Posts ── */}
       <View style={{ marginHorizontal: 20, marginTop: 24 }}>
-        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-          <Text style={{ color: C.text, fontWeight: "700", fontSize: 17 }}>Recent Posts</Text>
-          <Text style={{ color: C.main, fontWeight: "600", fontSize: 13 }}>See all →</Text>
-        </View>
+        <Text style={{ color: C.text, fontWeight: "700", fontSize: 17, marginBottom: 14 }}>Recent Posts</Text>
 
-        {RECENT_POSTS.length === 0 ? (
-          <View
-            style={{
-              backgroundColor: C.white,
-              borderRadius: 20,
-              alignItems: "center",
-              paddingVertical: 40,
-              borderWidth: 1.5,
-              borderColor: C.border,
-            }}
-          >
-            <Text style={{ fontSize: 40, marginBottom: 10 }}>🏡</Text>
-            <Text style={{ color: C.text, fontWeight: "700", fontSize: 16, marginBottom: 4 }}>No posts yet</Text>
-            <Text style={{ color: C.subtext, fontSize: 13, textAlign: "center", maxWidth: 220 }}>
-              Share your first holiday decoration to get started!
-            </Text>
-          </View>
-        ) : (
-          RECENT_POSTS.map((post) => (
-            <RecentPostCard key={post.title} {...post} />
-          ))
-        )}
+        <View
+          style={{
+            backgroundColor: C.white,
+            borderRadius: 20,
+            alignItems: "center",
+            paddingVertical: 40,
+            borderWidth: 1.5,
+            borderColor: C.border,
+          }}
+        >
+          <Text style={{ fontSize: 40, marginBottom: 10 }}>🏡</Text>
+          <Text style={{ color: C.text, fontWeight: "700", fontSize: 16, marginBottom: 4 }}>No posts yet</Text>
+          <Text style={{ color: C.subtext, fontSize: 13, textAlign: "center", maxWidth: 220 }}>
+            Share your first holiday decoration to get started!
+          </Text>
+        </View>
       </View>
     </ScrollView>
   );

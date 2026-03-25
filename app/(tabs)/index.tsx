@@ -1,6 +1,8 @@
 import { LinearGradient } from "expo-linear-gradient";
+import * as ImagePicker from "expo-image-picker";
 import { useState } from "react";
 import {
+  Image,
   Modal,
   ScrollView,
   Text,
@@ -37,6 +39,7 @@ interface Post {
   howToJoin: string;
   tags: string[];
   timeAgo: string;
+  imageUri?: string;
 }
 
 interface PostCardProps {
@@ -52,6 +55,7 @@ interface NewPostForm {
   description: string;
   howToJoin: string;
   tags: string;
+  imageUri: string;
 }
 
 interface CreatePostModalProps {
@@ -74,7 +78,7 @@ const AVATAR_MAP: Record<string, string> = {
 
 const EMPTY_FORM: NewPostForm = {
   user: "", location: "", holiday: "Christmas",
-  title: "", description: "", howToJoin: "", tags: "",
+  title: "", description: "", howToJoin: "", tags: "", imageUri: "",
 };
 
 const TABS = ["📍 Nearby", "🔥 Trending", "🌍 All"];
@@ -136,6 +140,15 @@ function PostCard({ post, onJoin }: PostCardProps) {
           </View>
         )}
       </View>
+
+      {/* Post image */}
+      {post.imageUri ? (
+        <Image
+          source={{ uri: post.imageUri }}
+          style={{ width: "100%", height: 220, marginBottom: 0 }}
+          resizeMode="cover"
+        />
+      ) : null}
 
       {/* How to Join */}
       <View style={{ marginHorizontal: 16, marginBottom: 14, backgroundColor: C.background, borderWidth: 1.5, borderColor: C.secondary, borderStyle: "dashed", borderRadius: 12, overflow: "hidden" }}>
@@ -204,6 +217,17 @@ function CreatePostModal({ onSubmit, onClose }: CreatePostModalProps) {
   const set = (field: keyof NewPostForm) => (value: string) =>
     setForm((prev) => ({ ...prev, [field]: value }));
 
+  const pickImage = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images"],
+      allowsEditing: true,
+      quality: 0.8,
+    });
+    if (!result.canceled) {
+      setForm((prev) => ({ ...prev, imageUri: result.assets[0].uri }));
+    }
+  };
+
   const handleSubmit = () => {
     if (!form.user || !form.location || !form.title || !form.description || !form.howToJoin) {
       setError("Please fill in all required fields.");
@@ -223,6 +247,7 @@ function CreatePostModal({ onSubmit, onClose }: CreatePostModalProps) {
       howToJoin: form.howToJoin,
       tags: form.tags.split(",").map((t) => t.trim()).filter(Boolean).map((t) => t.startsWith("#") ? t : `#${t}`),
       timeAgo: "Just now",
+      imageUri: form.imageUri || undefined,
     };
     onSubmit(newPost);
   };
@@ -299,6 +324,36 @@ function CreatePostModal({ onSubmit, onClose }: CreatePostModalProps) {
               <View>
                 <Text style={labelStyle}>Tags (comma separated)</Text>
                 <TextInput style={inputStyle} placeholder="ChristmasLights, OakStreet" value={form.tags} onChangeText={set("tags")} placeholderTextColor={C.border} />
+              </View>
+
+              {/* Image picker */}
+              <View>
+                <Text style={labelStyle}>Photo (optional)</Text>
+                <TouchableOpacity
+                  onPress={pickImage}
+                  style={{
+                    borderWidth: 1.5,
+                    borderColor: form.imageUri ? C.main : C.border,
+                    borderRadius: 12,
+                    borderStyle: "dashed",
+                    backgroundColor: C.background,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    overflow: "hidden",
+                    minHeight: form.imageUri ? 160 : 64,
+                  }}
+                >
+                  {form.imageUri ? (
+                    <Image source={{ uri: form.imageUri }} style={{ width: "100%", height: 160 }} resizeMode="cover" />
+                  ) : (
+                    <Text style={{ color: C.subtext, fontSize: 14, paddingVertical: 18 }}>📷 Tap to add a photo</Text>
+                  )}
+                </TouchableOpacity>
+                {form.imageUri ? (
+                  <TouchableOpacity onPress={() => setForm((prev) => ({ ...prev, imageUri: "" }))} style={{ marginTop: 6, alignSelf: "flex-end" }}>
+                    <Text style={{ color: C.accent, fontSize: 12, fontWeight: "600" }}>✕ Remove photo</Text>
+                  </TouchableOpacity>
+                ) : null}
               </View>
 
               {error !== "" && (
