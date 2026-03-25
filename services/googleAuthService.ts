@@ -1,50 +1,43 @@
-import auth from "@react-native-firebase/auth";
-import firestore from "@react-native-firebase/firestore";
+import { Platform } from "react-native";
 import {
-  GoogleSignin,
-  statusCodes,
-} from "@react-native-google-signin/google-signin";
+  signInWithGoogle as compatSignInWithGoogle,
+  signOut,
+  firestoreSetDoc,
+  SERVER_TIMESTAMP,
+} from "./firebaseCompat";
 
-// ── Configure Google Sign-In (call this once at app startup) ───────────────────
+// ── Configure Google Sign-In (native only — web uses a popup) ─────────────────
 
 export function configureGoogleSignIn() {
+  if (Platform.OS === "web") return;
+
+  const { GoogleSignin } = require("@react-native-google-signin/google-signin");
   GoogleSignin.configure({
-    webClientId: "804186028933-ukqhoukrkel13bsnjfevufthn8vvv0e8.apps.googleusercontent.com",
+    webClientId:
+      "804186028933-ukqhoukrkel13bsnjfevufthn8vvv0e8.apps.googleusercontent.com",
+  offlineAccess: true,
+  scopes: ["profile", "email"],
   });
 }
 
 // ── Sign in with Google ────────────────────────────────────────────────────────
 
 export async function signInWithGoogle(): Promise<void> {
-  // Check Play Services are available
-  await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+  const { user, isNewUser } = await compatSignInWithGoogle();
 
-  // Open the Google sign-in modal
-  const signInResult = await GoogleSignin.signIn();
-
-  // Get the ID token
-  const idToken = signInResult.data?.idToken;
-  if (!idToken) throw new Error("No ID token returned from Google.");
-
-  // Create a Firebase credential from the Google token
-  const googleCredential = auth.GoogleAuthProvider.credential(idToken);
-
-  // Sign in to Firebase with the credential
-  const { user, additionalUserInfo } = await auth().signInWithCredential(googleCredential);
-
-  // If this is a new user, create their Firestore profile
-  if (additionalUserInfo?.isNewUser) {
+  if (isNewUser) {
     const displayName = user.displayName ?? "";
     const [firstName, ...rest] = displayName.split(" ");
-    await firestore().collection("users").doc(user.uid).set({
-      uid:       user.uid,
+
+    await firestoreSetDoc("users", user.uid, {
+      uid: user.uid,
       firstName: firstName ?? "",
-      lastName:  rest.join(" ") ?? "",
-      username:  user.email?.split("@")[0] ?? "",
-      email:     user.email ?? "",
-      phone:     user.phoneNumber ?? "",
-      address:   { street: "", city: "", state: "", zip: "" },
-      createdAt: firestore.FieldValue.serverTimestamp(),
+      lastName: rest.join(" ") ?? "",
+      username: user.email?.split("@")[0] ?? "",
+      email: user.email ?? "",
+      phone: user.phoneNumber ?? "",
+      address: { street: "", city: "", state: "", zip: "" },
+      createdAt: SERVER_TIMESTAMP,
     });
   }
 }
@@ -52,16 +45,28 @@ export async function signInWithGoogle(): Promise<void> {
 // ── Sign out ───────────────────────────────────────────────────────────────────
 
 export async function signOutGoogle(): Promise<void> {
-  await GoogleSignin.signOut();
-  await auth().signOut();
+  if (Platform.OS !== "web") {
+    const { GoogleSignin } = require("@react-native-google-signin/google-signin");
+    await GoogleSignin.signOut();
+  }
+  await signOut();
 }
 
 // ── Error helpers ──────────────────────────────────────────────────────────────
 
 export function getGoogleSignInError(err: any): string {
-  console.log("Google Sign-In Error:", err.code, err.message);
+  if (Platform.OS === "web") {
+    const code: string = err?.code ?? "";
+    if (code === "auth/popup-closed-by-user") return "Sign-in cancelled.";
+    if (code === "auth/popup-blocked") return "Pop-up was blocked by the browser.";
+    if (code === "auth/cancelled-popup-request") return "Sign-in cancelled.";
+    return "Google sign-in failed. Please try again.";
+  }
+
+  const { statusCodes } = require("@react-native-google-signin/google-signin");
   if (err.code === statusCodes.SIGN_IN_CANCELLED) return "Sign-in cancelled.";
   if (err.code === statusCodes.IN_PROGRESS) return "Sign-in already in progress.";
-  if (err.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) return "Google Play Services not available.";
+  if (err.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE)
+    return "Google Play Services not available.";
   return "Google sign-in failed. Please try again.";
 }

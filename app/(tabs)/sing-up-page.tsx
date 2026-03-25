@@ -239,6 +239,10 @@ const handleGoogleSignIn = async () => {
     await signInWithGoogle();
   } catch (err: any) {
     setGoogleError(getGoogleSignInError(err));
+    console.log("GOOGLE ERROR CODE:", err?.code);
+    console.log("GOOGLE ERROR MESSAGE:", err?.message);
+    console.log("GOOGLE ERROR FULL:", JSON.stringify(err));
+    setGoogleError(getGoogleSignInError(err));
   } finally {
     setGoogleLoading(false);
   }

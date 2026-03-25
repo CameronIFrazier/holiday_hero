@@ -1,14 +1,14 @@
-import auth, { FirebaseAuthTypes } from "@react-native-firebase/auth";
 import { useEffect, useState } from "react";
+import { onAuthStateChanged, type AuthUser } from "@/services/firebaseCompat";
 
 interface UseAuthReturn {
-  user: FirebaseAuthTypes.User | null;
+  user: AuthUser | null;
   loading: boolean;
 }
 
 /**
  * Listens to Firebase auth state changes.
- * Use this in your root layout to decide whether to show the feed or sign-up page.
+ * Works on web, iOS, and Android via the firebaseCompat abstraction layer.
  *
  * Example:
  *   const { user, loading } = useAuth();
@@ -17,13 +17,13 @@ interface UseAuthReturn {
  *   return <Feed />;
  */
 export function useAuth(): UseAuthReturn {
-  const [user, setUser]       = useState<FirebaseAuthTypes.User | null>(null);
+  const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     // onAuthStateChanged returns an unsubscribe function
-    const unsubscribe = auth().onAuthStateChanged((firebaseUser) => {
-      setUser(firebaseUser);
+    const unsubscribe = onAuthStateChanged((authUser) => {
+      setUser(authUser);
       setLoading(false);
     });
 
