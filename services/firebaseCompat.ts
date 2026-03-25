@@ -181,6 +181,64 @@ export async function firestoreSetDoc(
   return firestore().collection(collectionName).doc(docId).set(resolved);
 }
 
+// ─── Firestore: addDoc ────────────────────────────────────────────────────────
+// Adds a document with an auto-generated ID and returns that ID.
+
+export async function firestoreAddDoc(
+  collectionName: string,
+  data: Record<string, any>
+): Promise<string> {
+  if (Platform.OS === "web") {
+    const { collection, addDoc } = require("firebase/firestore");
+    const docRef = await addDoc(collection(webDb, collectionName), data);
+    return docRef.id;
+  }
+
+  const firestore = require("@react-native-firebase/firestore").default;
+  const docRef = await firestore().collection(collectionName).add(data);
+  return docRef.id;
+}
+
+// ─── Firestore: getDocs ───────────────────────────────────────────────────────
+// Returns all documents in a collection as plain objects.
+
+export async function firestoreGetDocs(
+  collectionName: string
+): Promise<Array<{ id: string } & Record<string, any>>> {
+  if (Platform.OS === "web") {
+    const { collection, getDocs } = require("firebase/firestore");
+    const snap = await getDocs(collection(webDb, collectionName));
+    return snap.docs.map((doc: any) => ({ id: doc.id, ...doc.data() }));
+  }
+
+  const firestore = require("@react-native-firebase/firestore").default;
+  const snap = await firestore().collection(collectionName).get();
+  return snap.docs.map((doc: any) => ({ id: doc.id, ...doc.data() }));
+}
+
+// ─── Firestore: getDocsByField ────────────────────────────────────────────────
+// Returns documents where `field == value`.
+
+export async function firestoreGetDocsByField(
+  collectionName: string,
+  field: string,
+  value: any
+): Promise<Array<{ id: string } & Record<string, any>>> {
+  if (Platform.OS === "web") {
+    const { collection, getDocs, query, where } = require("firebase/firestore");
+    const q = query(collection(webDb, collectionName), where(field, "==", value));
+    const snap = await getDocs(q);
+    return snap.docs.map((doc: any) => ({ id: doc.id, ...doc.data() }));
+  }
+
+  const firestore = require("@react-native-firebase/firestore").default;
+  const snap = await firestore()
+    .collection(collectionName)
+    .where(field, "==", value)
+    .get();
+  return snap.docs.map((doc: any) => ({ id: doc.id, ...doc.data() }));
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function resolveTimestamps(

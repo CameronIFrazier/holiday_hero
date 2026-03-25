@@ -1,7 +1,8 @@
 import { LinearGradient } from "expo-linear-gradient";
 import * as ImagePicker from "expo-image-picker";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
+  ActivityIndicator,
   Image,
   Modal,
   ScrollView,
@@ -10,6 +11,11 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useAuth } from "@/hooks/useAuth";
+import {
+  firestoreAddDoc,
+  firestoreGetDocs,
+} from "@/services/firebaseCompat";
 
 // ── Theme tokens ───────────────────────────────────────────────────────────────
 const C = {
@@ -26,7 +32,8 @@ const C = {
 // ── Types ──────────────────────────────────────────────────────────────────────
 
 interface Post {
-  id: number;
+  id: string;
+  uid: string;
   user: string;
   avatar: string;
   distance: string;
@@ -39,6 +46,7 @@ interface Post {
   howToJoin: string;
   tags: string[];
   timeAgo: string;
+  createdAtMs: number;
   imageUri?: string;
 }
 
@@ -59,7 +67,8 @@ interface NewPostForm {
 }
 
 interface CreatePostModalProps {
-  onSubmit: (post: Post) => void;
+  uid: string;
+  onSubmit: (draft: Omit<Post, "id">) => Promise<void>;
   onClose: () => void;
 }
 
@@ -82,6 +91,44 @@ const EMPTY_FORM: NewPostForm = {
 };
 
 const TABS = ["📍 Nearby", "🔥 Trending", "🌍 All"];
+
+// ── Helpers ────────────────────────────────────────────────────────────────────
+
+function getTimeAgo(ms: number): string {
+  const diff = Date.now() - ms;
+  const minutes = Math.floor(diff / 60000);
+  if (minutes < 1) return "Just now";
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+}
+
+function docToPost(doc: Record<string, any>): Post {
+  return {
+    id: doc.id,
+    uid: doc.uid ?? "",
+    user: doc.user ?? "Unknown",
+    avatar: doc.avatar ?? "🌟",
+    distance: doc.distance ?? "Nearby",
+    location: doc.location ?? "",
+    holiday: doc.holiday ?? "Other",
+    title: doc.title ?? "",
+    description: doc.description ?? "",
+    participants: doc.participants ?? 1,
+    shares: doc.shares ?? 0,
+    howToJoin: doc.howToJoin ?? "",
+    tags: Array.isArray(doc.tags) ? doc.tags : [],
+    timeAgo: getTimeAgo(doc.createdAtMs ?? Date.now()),
+    createdAtMs: doc.createdAtMs ?? Date.now(),
+    imageUri: doc.imageUri || undefined,
+  };
+}
+
+function shuffled<T>(arr: T[]): T[] {
+  return [...arr].sort(() => Math.random() - 0.5);
+}
 
 // ── PostCard ───────────────────────────────────────────────────────────────────
 
@@ -145,13 +192,13 @@ function PostCard({ post, onJoin }: PostCardProps) {
       {post.imageUri ? (
         <Image
           source={{ uri: post.imageUri }}
-          style={{ width: "100%", height: 220, marginBottom: 0 }}
+          style={{ width: "100%", height: 220 }}
           resizeMode="cover"
         />
       ) : null}
 
       {/* How to Join */}
-      <View style={{ marginHorizontal: 16, marginBottom: 14, backgroundColor: C.background, borderWidth: 1.5, borderColor: C.secondary, borderStyle: "dashed", borderRadius: 12, overflow: "hidden" }}>
+      <View style={{ marginHorizontal: 16, marginVertical: 14, backgroundColor: C.background, borderWidth: 1.5, borderColor: C.secondary, borderStyle: "dashed", borderRadius: 12, overflow: "hidden" }}>
         <TouchableOpacity
           onPress={() => setExpanded(!expanded)}
           style={{ paddingHorizontal: 14, paddingVertical: 10, flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}
@@ -209,10 +256,11 @@ function PostCard({ post, onJoin }: PostCardProps) {
 
 // ── Create Post Modal ──────────────────────────────────────────────────────────
 
-function CreatePostModal({ onSubmit, onClose }: CreatePostModalProps) {
-  const [form, setForm]   = useState<NewPostForm>(EMPTY_FORM);
-  const [error, setError] = useState("");
+function CreatePostModal({ uid, onSubmit, onClose }: CreatePostModalProps) {
+  const [form, setForm]       = useState<NewPostForm>(EMPTY_FORM);
+  const [error, setError]     = useState("");
   const [holidayOpen, setHolidayOpen] = useState(false);
+  const [saving, setSaving]   = useState(false);
 
   const set = (field: keyof NewPostForm) => (value: string) =>
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -228,13 +276,15 @@ function CreatePostModal({ onSubmit, onClose }: CreatePostModalProps) {
     }
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!form.user || !form.location || !form.title || !form.description || !form.howToJoin) {
       setError("Please fill in all required fields.");
       return;
     }
-    const newPost: Post = {
-      id: Date.now(),
+    setSaving(true);
+    const now = Date.now();
+    const draft: Omit<Post, "id"> = {
+      uid,
       user: form.user,
       avatar: AVATAR_MAP[form.holiday] ?? "🌟",
       distance: "Your area",
@@ -247,9 +297,14 @@ function CreatePostModal({ onSubmit, onClose }: CreatePostModalProps) {
       howToJoin: form.howToJoin,
       tags: form.tags.split(",").map((t) => t.trim()).filter(Boolean).map((t) => t.startsWith("#") ? t : `#${t}`),
       timeAgo: "Just now",
+      createdAtMs: now,
       imageUri: form.imageUri || undefined,
     };
-    onSubmit(newPost);
+    try {
+      await onSubmit(draft);
+    } finally {
+      setSaving(false);
+    }
   };
 
   const inputStyle = {
@@ -360,9 +415,12 @@ function CreatePostModal({ onSubmit, onClose }: CreatePostModalProps) {
                 <Text style={{ color: C.accent, fontSize: 13, fontWeight: "600" }}>⚠️ {error}</Text>
               )}
 
-              <LinearGradient colors={[C.main, C.accent]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ borderRadius: 16, marginTop: 4 }}>
-                <TouchableOpacity onPress={handleSubmit} style={{ paddingVertical: 14, alignItems: "center" }}>
-                  <Text style={{ color: C.white, fontWeight: "800", fontSize: 16 }}>🚀 Post to the Neighborhood</Text>
+              <LinearGradient colors={saving ? [C.border, C.border] : [C.main, C.accent]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ borderRadius: 16, marginTop: 4 }}>
+                <TouchableOpacity onPress={handleSubmit} disabled={saving} style={{ paddingVertical: 14, alignItems: "center" }}>
+                  {saving
+                    ? <ActivityIndicator color={C.white} />
+                    : <Text style={{ color: C.white, fontWeight: "800", fontSize: 16 }}>🚀 Post to the Neighborhood</Text>
+                  }
                 </TouchableOpacity>
               </LinearGradient>
 
@@ -377,17 +435,37 @@ function CreatePostModal({ onSubmit, onClose }: CreatePostModalProps) {
 // ── Feed Screen ────────────────────────────────────────────────────────────────
 
 export default function HolidayHeroFeed() {
-  const [posts, setPosts]       = useState<Post[]>([]);
+  const { user }                  = useAuth();
+  const [posts, setPosts]         = useState<Post[]>([]);
   const [showModal, setShowModal] = useState(false);
-  const [toast, setToast]       = useState<string | null>(null);
+  const [toast, setToast]         = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("📍 Nearby");
+  const [loading, setLoading]     = useState(true);
 
   const showToast = (msg: string) => {
     setToast(msg);
     setTimeout(() => setToast(null), 3000);
   };
 
-  const handleNewPost = (post: Post) => {
+  const loadPosts = async () => {
+    try {
+      const docs = await firestoreGetDocs("posts");
+      const loaded = docs.map(docToPost);
+      setPosts(shuffled(loaded));
+    } catch (e) {
+      console.error("Failed to load posts:", e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadPosts();
+  }, []);
+
+  const handleNewPost = async (draft: Omit<Post, "id">) => {
+    const docId = await firestoreAddDoc("posts", draft);
+    const post: Post = { ...draft, id: docId };
     setPosts((prev) => [post, ...prev]);
     setShowModal(false);
     showToast("Your post is live! 🎉");
@@ -414,9 +492,11 @@ export default function HolidayHeroFeed() {
             <Text style={{ color: "rgba(255,255,255,0.75)", fontSize: 11, fontWeight: "700", letterSpacing: 2, textTransform: "uppercase" }}>📍 Maplewood, NJ</Text>
             <Text style={{ fontSize: 30, fontWeight: "900", color: C.white, letterSpacing: -0.5 }}>Holiday Hero 🦸</Text>
           </View>
-          <TouchableOpacity onPress={() => setShowModal(true)} style={{ marginTop: 8, backgroundColor: C.white, paddingHorizontal: 18, paddingVertical: 10, borderRadius: 20 }}>
-            <Text style={{ color: C.main, fontWeight: "800", fontSize: 14 }}>+ Post</Text>
-          </TouchableOpacity>
+          {user && (
+            <TouchableOpacity onPress={() => setShowModal(true)} style={{ marginTop: 8, backgroundColor: C.white, paddingHorizontal: 18, paddingVertical: 10, borderRadius: 20 }}>
+              <Text style={{ color: C.main, fontWeight: "800", fontSize: 14 }}>+ Post</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* Search */}
@@ -440,27 +520,41 @@ export default function HolidayHeroFeed() {
       </LinearGradient>
 
       {/* Feed */}
-      <ScrollView contentContainerStyle={{ padding: 16 }} showsVerticalScrollIndicator={false}>
-        {posts.length === 0 ? (
-          <View style={{ alignItems: "center", paddingVertical: 60, paddingHorizontal: 20 }}>
-            <Text style={{ fontSize: 52, marginBottom: 12 }}>🏡</Text>
-            <Text style={{ fontWeight: "800", fontSize: 18, color: C.text, marginBottom: 8 }}>No posts yet!</Text>
-            <Text style={{ fontSize: 14, color: C.subtext, lineHeight: 22, textAlign: "center", marginBottom: 24 }}>
-              Be the first to bring holiday spirit to your neighborhood.
-            </Text>
-            <LinearGradient colors={[C.main, C.accent]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ borderRadius: 20 }}>
-              <TouchableOpacity onPress={() => setShowModal(true)} style={{ paddingHorizontal: 28, paddingVertical: 12 }}>
-                <Text style={{ color: C.white, fontWeight: "800", fontSize: 15 }}>🎄 Start the Tradition</Text>
-              </TouchableOpacity>
-            </LinearGradient>
-          </View>
-        ) : (
-          posts.map((post) => <PostCard key={post.id} post={post} onJoin={handleJoin} />)
-        )}
-      </ScrollView>
+      {loading ? (
+        <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+          <ActivityIndicator size="large" color={C.main} />
+        </View>
+      ) : (
+        <ScrollView contentContainerStyle={{ padding: 16 }} showsVerticalScrollIndicator={false}>
+          {posts.length === 0 ? (
+            <View style={{ alignItems: "center", paddingVertical: 60, paddingHorizontal: 20 }}>
+              <Text style={{ fontSize: 52, marginBottom: 12 }}>🏡</Text>
+              <Text style={{ fontWeight: "800", fontSize: 18, color: C.text, marginBottom: 8 }}>No posts yet!</Text>
+              <Text style={{ fontSize: 14, color: C.subtext, lineHeight: 22, textAlign: "center", marginBottom: 24 }}>
+                Be the first to bring holiday spirit to your neighborhood.
+              </Text>
+              {user && (
+                <LinearGradient colors={[C.main, C.accent]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ borderRadius: 20 }}>
+                  <TouchableOpacity onPress={() => setShowModal(true)} style={{ paddingHorizontal: 28, paddingVertical: 12 }}>
+                    <Text style={{ color: C.white, fontWeight: "800", fontSize: 15 }}>🎄 Start the Tradition</Text>
+                  </TouchableOpacity>
+                </LinearGradient>
+              )}
+            </View>
+          ) : (
+            posts.map((post) => <PostCard key={post.id} post={post} onJoin={handleJoin} />)
+          )}
+        </ScrollView>
+      )}
 
       {/* Create Post Modal */}
-      {showModal && <CreatePostModal onSubmit={handleNewPost} onClose={() => setShowModal(false)} />}
+      {showModal && user && (
+        <CreatePostModal
+          uid={user.uid}
+          onSubmit={handleNewPost}
+          onClose={() => setShowModal(false)}
+        />
+      )}
 
     </View>
   );
